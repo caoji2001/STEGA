@@ -62,6 +62,7 @@ class CausalSelfAttention(nn.Module):
         self.dropout = config["dropout"]
         # support only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, "scaled_dot_product_attention")
+        self.flash = False
         if not self.flash:
             print(
                 "WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0"
@@ -118,6 +119,7 @@ class CausalSelfAttention(nn.Module):
 
         assert not self.flash
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        assert T == 1
         if T != 1:
             att = att.masked_fill(self.bias[:, :, start_pos:start_pos+T, :start_pos+T] == 0, float("-inf"))
         att = F.softmax(att, dim=-1)
@@ -470,9 +472,9 @@ class MyTransformer(nn.Module):
                 dur_pred[len_mask] = 0
                 loss_dur = self.loss(dur_pred, dur_real)  # (batch, len-1)
                 loss_dur_masked = (
-                    loss_dur * (1-len_mask).float()
+                    loss_dur * (~len_mask).float()
                 ).sum()  # gives \sigma_euclidean over unmasked elements
-                loss += loss_dur_masked / (1-len_mask).sum()
+                loss += loss_dur_masked / (~len_mask).sum()
 
             # generate seq based on last idx
             else:
@@ -562,20 +564,20 @@ class MyTransformer(nn.Module):
             dist_geo_batch_dest[:,0,:].copy_(dist_geo_tensor[des[:,0].cpu()])
 
             for t in range(gen_seq_len): 
-                with profile(
-                    activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-                    record_shapes=True,
-                ) as prof:
-                    with record_function("generate self.forward"):
-                        logits, dur_pred, _ = self.infer_next(
-                            start_pos=t,
-                            idx=idx_cond[:,t:t+1],
-                            tim_real=tim[:,t:t+1],
-                            adj_batch=adj_batch,
-                            dist_geo_batch_x=dist_geo_batch_x,
-                            dist_geo_batch_dest=dist_geo_batch_dest,
-                            gnn_emb=gnn_emb,
-                        )  # (batch, 1, n)
+                # with profile(
+                #     activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                #     record_shapes=True,
+                # ) as prof:
+                    # with record_function("generate self.forward"):
+                logits, dur_pred, _ = self.infer_next(
+                    start_pos=t,
+                    idx=idx_cond[:,t:t+1],
+                    tim_real=tim[:,t:t+1],
+                    adj_batch=adj_batch,
+                    dist_geo_batch_x=dist_geo_batch_x,
+                    dist_geo_batch_dest=dist_geo_batch_dest,
+                    gnn_emb=gnn_emb,
+                )  # (batch, 1, n)
 
                 logits = logits[:, -1, :] / temperature
                 if top_k is not None:

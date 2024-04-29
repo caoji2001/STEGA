@@ -128,12 +128,12 @@ class MapManager(object):
         elif self.dataset_name == "BJ_Taxi":
             self.lon_0 = 116.25
             self.lat_0 = 39.79
-            self.lon_range = 0.2507  # span of longitude
+            self.lon_range = 0.26  # span of longitude
             self.lat_range = 0.21  # span of latitude
             self.img_unit = 0.005  # grid size like 0.42 km * 0.55 km 
             self.img_width = math.ceil(self.lon_range / self.img_unit) + 1  
             self.img_height = math.ceil(self.lat_range / self.img_unit) + 1 
-            self.road_num = 37684
+            self.road_num = 40060
             self.block_size = 60
             self.min_len = 5
 

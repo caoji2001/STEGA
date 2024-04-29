@@ -102,6 +102,7 @@ if __name__ == "__main__":
     else:
         for i in range(len(adj_dense)):
             adj_dense[i][i] = 1
+            assert adj_dense[i].sum() > 0
             if adj_dense[i].sum() == 0:
                 adj_dense[np.random.randint(0, len(adj_dense), 1)[0]] = 1
         np.save(adj_no_isolate_file, adj_dense)
