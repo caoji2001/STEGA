@@ -6,6 +6,7 @@ import sys
 
 import helpers
 import numpy as np
+import pandas as pd
 import torch
 
 from model import MyTransformer, MyTransformerConfig
@@ -56,7 +57,7 @@ train_str = f"{args.seed}-{args.gnn}-gly{args.gnn_layer_num}-ghd{args.gnn_head_n
 
 path_model_best = f"{args.out_dir}/{args.data}_{train_str}_ckpt_best.pth"
 path_model_last = f"{args.out_dir}/{args.data}_{train_str}_ckpt_last.pth"
-path_test_gene = f"{args.out_dir}/{args.data}_{train_str}_gene_{args.num_samples}.txt"
+path_test_gene = f"{args.out_dir}/{args.data}_{train_str}_gene_{args.num_samples}.csv"
 
 log_dir = f"./logs"
 log_prefix = (
@@ -105,5 +106,8 @@ with torch.no_grad():
             temperature=args.temperature,
             top_k=args.top_k,
         )
-with open(path_test_gene, "w") as f:
-    json.dump(pred_data, f)
+res_df = pd.DataFrame({
+    'rid_list': [pred_data[i][0] for i in range(len(pred_data))],
+    'time_list': [pred_data[i][1] for i in range(len(pred_data))],
+})
+res_df.to_csv(path_test_gene, index_label='index')
