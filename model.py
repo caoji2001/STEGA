@@ -355,7 +355,7 @@ class MyTransformer(nn.Module):
         )  # two type distance activation(batch, len-1, n)
 
         weight_tim = (
-            self.time_layer(dist_geo_batch_x.view(-1, C)).view(N, L, C).sigmoid()
+            self.time_layer(dist_geo_batch_x.reshape(-1, C)).reshape(N, L, C).sigmoid()
         )  # last distance activation (batch, len-1, n)
 
         logits_weighted = (
@@ -372,6 +372,7 @@ class MyTransformer(nn.Module):
         probs = logits_masked.softmax(dim=-1)
         delta_dis = (probs * weight_tim[:, [-1], :]).sum(dim=-1)  # (batch, 1)
         dur_pred = dur_hat * delta_dis  # (batch, 1)
+        dur_pred = torch.clamp(dur_pred, min=0.0)
         loss = None
         return logits_masked, dur_pred, loss
 
@@ -399,6 +400,7 @@ class MyTransformer(nn.Module):
             gnn_emb = self.gat.compute_gnn()  # [loc_num, n_embd] 
         tok_emb = gnn_emb[idx]  # [batch, len-1, n_embd]
 
+        assert targets is not None
         if targets is not None:
             tim_emb = self.transformer.tme(tim_real[:, :-1])  # [batch, len-1, t_embd]
         else:
@@ -438,6 +440,7 @@ class MyTransformer(nn.Module):
             )  # last distance activation (batch, len-1, n)
 
             # pretraining, target is the correct next step rid
+            assert targets is not None
             if targets is not None:
                 logits_weighted = (
                     self.lm_head(x) * weight_dis
@@ -548,7 +551,7 @@ class MyTransformer(nn.Module):
 
             bs = eid_bch - sid_bch
             idx_cond = torch.zeros(bs, gen_seq_len+1).type_as(origins)
-            tim = torch.zeros(bs, gen_seq_len+1).type_as(start_ts)
+            tim = torch.zeros(bs, gen_seq_len+1, dtype=torch.float32).to(self.device)
 
             idx_cond[:,0:1] = origins[sid_bch:eid_bch]
             tim[:,0:1] = start_ts[sid_bch:eid_bch]
@@ -572,9 +575,9 @@ class MyTransformer(nn.Module):
                 logits, dur_pred, _ = self.infer_next(
                     start_pos=t,
                     idx=idx_cond[:,t:t+1],
-                    tim_real=tim[:,t:t+1],
-                    adj_batch=adj_batch,
-                    dist_geo_batch_x=dist_geo_batch_x,
+                    tim_real=torch.round(tim[:, t:t+1]).long(),
+                    adj_batch=adj_batch[:, :t+1, :],
+                    dist_geo_batch_x=dist_geo_batch_x[:, :t+1, :],
                     dist_geo_batch_dest=dist_geo_batch_dest,
                     gnn_emb=gnn_emb,
                 )  # (batch, 1, n)
@@ -592,16 +595,24 @@ class MyTransformer(nn.Module):
 
                 idx_next = idx_next.view(-1)
                 idx_cond[:,t+1].copy_(idx_next)
-                tim[:,t+1].copy_(tim[:,t] + dur_pred.view(-1))
+
+                tmp = tim[:, t].clone()
+                mask = (tmp >= 1440)
+                tmp[mask] -= 1440
+                tmp = (tmp + dur_pred.view(-1)) % 1440
+                tmp[mask] += 1440
+                tim[:,t+1].copy_(tmp)
+
                 adj_batch[:,t+1].copy_(adj_tensor[idx_next.cpu()])
                 dist_geo_batch_x[:,t+1].copy_(dist_geo_tensor[idx_next.cpu()])
 
             pred_traj.extend(idx_cond.tolist())
-            pred_tim.extend(tim.tolist())
+            pred_tim.extend(torch.round(tim).long().tolist())
 
         df = pd.read_csv(f"./data/{args.data}/roadmap.rel")
         oid = df["origin_id"].tolist()
         did = df["destination_id"].tolist()
+        # 这个stop_points的意思应该是那种进去了就出不来的道路
         stop_points = list(set(did) - set(oid))
 
         destinations = destinations.reshape(-1).cpu().tolist()
@@ -621,6 +632,7 @@ class MyTransformer(nn.Module):
                         destinations[i],
                     ]
                 )
+            # 不会执行
             elif destinations[i] in pred_traj[i] and include_stop: 
                 stp = list(set(pred_traj[i]).intersection(stop_points))[0]
                 stop_pos = pred_traj[i].index(stp)
@@ -651,6 +663,7 @@ class MyTransformer(nn.Module):
                 pred.append(
                     [pred_traj[i][:length], pred_tim[i][:length], destinations[i]]
                 )
+            # 不会执行
             else:
                 stp = list(set(pred_traj[i]).intersection(stop_points))[0]  
                 stop_pos = pred_traj[i].index(stp)
