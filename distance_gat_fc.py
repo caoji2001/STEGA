@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import os
 os.environ['DGLBACKEND'] = 'pytorch'
-from dgl.nn import GraphormerLayer
-from graph_model import GAT, GCN, SAGE
+# from dgl.nn import GraphormerLayer
+# from graph_model import GAT, GCN, SAGE
 
 class DistanceGatFC(nn.Module):
     def __init__(self, config, data_feature, device):
@@ -27,10 +27,10 @@ class DistanceGatFC(nn.Module):
             self.feature_dim = self.node_features.shape[1]
         if self.gnn_model == 'gat':
             self.gat_encoder = GATLayerImp3(num_in_features=self.feature_dim, num_out_features=self.embed_dim, num_of_heads=self.num_of_heads, concat=self.concat, device=self.device)
-        elif self.gnn_model == 'graphormer':
-            self.gat_encoder = GraphormerLayer(feat_size=self.feature_dim, hidden_size=self.embed_dim, num_heads=self.num_of_heads)
-        elif self.gnn_model == 'gat_v1':
-            self.gat_encoder = GAT(self.feature_dim, self.embed_dim, self.embed_dim, self.num_of_layers, self.num_of_heads)
+        # elif self.gnn_model == 'graphormer':
+        #     self.gat_encoder = GraphormerLayer(feat_size=self.feature_dim, hidden_size=self.embed_dim, num_heads=self.num_of_heads)
+        # elif self.gnn_model == 'gat_v1':
+        #     self.gat_encoder = GAT(self.feature_dim, self.embed_dim, self.embed_dim, self.num_of_layers, self.num_of_heads)
 
         if not self.no_gps_emb:
             self.lat_embed = nn.Embedding(num_embeddings=data_feature['img_height'], embedding_dim=self.gps_emb_dim)
