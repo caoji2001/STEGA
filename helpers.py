@@ -270,7 +270,7 @@ def read_start_t_probs(data):
         df["start_t"] = df["time_list"].apply(lambda x: encode_time(x.split(",")[0]))
         res = df["start_t"].value_counts()
         vals, cnts = res.index, res.values
-        probs = np.zeros(2880)
+        probs = np.zeros(2880, dtype=np.float32)
         probs[vals] = cnts
         probs = torch.from_numpy(probs / probs.sum())
         torch.save(probs, prob_file)
@@ -324,7 +324,7 @@ def read_adjcent_file(data):
                 adj_col.append(t_id)
                 adj_data.append(1.0)
         num = map_manager.road_num
-        adj_mx = sp.coo_matrix((adj_data, (adj_row, adj_col)), shape=(num, num))
+        adj_mx = sp.coo_matrix((adj_data, (adj_row, adj_col)), shape=(num, num), dtype=np.float32)
         sp.save_npz(adjacent_np_file, adj_mx)
     return adj_mx
 
